@@ -29,7 +29,7 @@ Windows Snap only offers a few fixed layouts. If you run a pile of Claude Code, 
    powershell -ExecutionPolicy Bypass -File .\install.ps1
    ```
 
-This registers a scheduled task named `Tidy Terminals` and puts a **Tidy Terminals** shortcut on your Desktop with the hotkey Ctrl+Alt+T. Admin approval is needed only this once.
+This registers a scheduled task named `Tidy Terminals`, puts a **Tidy Terminals** shortcut on your Desktop, and starts a tiny background listener (also launched at every login) that owns the **Ctrl+Alt+T** hotkey. Admin approval is needed only this once.
 
 Run it again after opening more terminals.
 
@@ -52,7 +52,8 @@ powershell -ExecutionPolicy Bypass -File .\tidy-terminals.ps1
 | `tidy-terminals.ps1` | The grid logic (Win32 calls via `Add-Type`) |
 | `tidy-terminals.vbs` | Runs the script with no visible window |
 | `run-tidy-task.vbs` | What the shortcut runs; starts the elevated scheduled task |
-| `install.ps1` | Registers the task and creates the Desktop shortcut |
+| `hotkey-listener.ps1` / `.vbs` | Hidden background listener that registers Ctrl+Alt+T via the Windows hotkey API and starts the task |
+| `install.ps1` | Registers the task, creates the Desktop shortcut, adds the listener to Startup |
 
 ## Customizing
 
@@ -63,13 +64,17 @@ Edit the top of `tidy-terminals.ps1`:
 
 It tiles on the **primary** monitor's work area (screen minus taskbar).
 
+## Troubleshooting
+
+If another program already owns Ctrl+Alt+T, the listener shows a message saying so. Change the key in `hotkey-listener.ps1` (the `0x54` is the virtual-key code for T), then re-run `install.ps1`.
+
 ## Uninstall
 
 ```powershell
 Unregister-ScheduledTask -TaskName 'Tidy Terminals' -Confirm:$false
 ```
 
-Then delete the Desktop shortcut, `C:\Program Files\TidyTerminals` and this folder.
+Then delete the Desktop shortcut, the `Tidy Terminals Hotkey` shortcut in your Startup folder (`shell:startup`), end any `powershell` process running `hotkey-listener.ps1`, `C:\Program Files\TidyTerminals` and this folder.
 
 ## License
 

@@ -1,7 +1,9 @@
 # Installer. Run from an elevated PowerShell (right-click > Run as administrator).
 #   1. Registers a "Tidy Terminals" scheduled task that runs with highest privileges, so the
 #      tidy script can also move terminals that were opened as administrator.
-#   2. Creates a Desktop shortcut that starts the task, with hotkey Ctrl+Alt+T.
+#   2. Creates a Desktop shortcut that starts the task.
+#   3. Adds a Startup entry for a tiny background listener that owns the Ctrl+Alt+T hotkey
+#      (more reliable than a shortcut-file hotkey) and starts it now.
 # The elevated scripts are copied to Program Files; re-run this after editing tidy-terminals.ps1.
 # After this, using the shortcut or hotkey shows no admin prompt.
 
@@ -37,8 +39,15 @@ $lnk = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')
 $lnk.TargetPath = "$env:WINDIR\System32\wscript.exe"
 $lnk.Arguments = '"{0}"' -f (Join-Path $dir 'run-tidy-task.vbs')
 $lnk.WorkingDirectory = $dir
-$lnk.Hotkey = 'Ctrl+Alt+T'
 $lnk.Description = 'Snap all terminal windows into a grid'
 $lnk.Save()
+
+$startup = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Startup')) 'Tidy Terminals Hotkey.lnk'))
+$startup.TargetPath = "$env:WINDIR\System32\wscript.exe"
+$startup.Arguments = '"{0}"' -f (Join-Path $dir 'hotkey-listener.vbs')
+$startup.WorkingDirectory = $dir
+$startup.WindowStyle = 7
+$startup.Save()
+Start-Process "$env:WINDIR\System32\wscript.exe" -ArgumentList ('"{0}"' -f (Join-Path $dir 'hotkey-listener.vbs'))
 
 Write-Host 'Installed. Use the "Tidy Terminals" Desktop shortcut or press Ctrl+Alt+T.'
