@@ -2,6 +2,7 @@
 #   1. Registers a "Tidy Terminals" scheduled task that runs with highest privileges, so the
 #      tidy script can also move terminals that were opened as administrator.
 #   2. Creates a Desktop shortcut that starts the task, with hotkey Ctrl+Alt+T.
+# The elevated scripts are copied to Program Files; re-run this after editing tidy-terminals.ps1.
 # After this, using the shortcut or hotkey shows no admin prompt.
 
 $ErrorActionPreference = 'Stop'
@@ -12,10 +13,18 @@ if (-not $principalCheck.IsInRole([Security.Principal.WindowsBuiltInRole]::Admin
 }
 
 $dir = $PSScriptRoot
+
+# The task runs elevated, so the scripts it runs must not be writable by a normal user
+# (otherwise any program running as you could edit them and gain admin with no prompt).
+# Copy them under Program Files, where only administrators can write.
+$secure = Join-Path $env:ProgramFiles 'TidyTerminals'
+New-Item -ItemType Directory -Force -Path $secure | Out-Null
+Copy-Item (Join-Path $dir 'tidy-terminals.ps1'), (Join-Path $dir 'tidy-terminals.vbs') -Destination $secure -Force
+
 $user = "$env:USERDOMAIN\$env:USERNAME"
 
 $action = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\wscript.exe" `
-    -Argument ('"{0}"' -f (Join-Path $dir 'tidy-terminals.vbs'))
+    -Argument ('"{0}"' -f (Join-Path $secure 'tidy-terminals.vbs'))
 $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew

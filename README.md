@@ -35,7 +35,7 @@ Run it again after opening more terminals.
 
 ### Why a scheduled task?
 
-Windows only lets an elevated program move elevated windows. The task runs with highest privileges, so terminals you opened "as administrator" join the grid too. Starting a task from the shortcut needs no UAC prompt.
+Windows only lets an elevated program move elevated windows. The task runs with highest privileges, so terminals you opened "as administrator" join the grid too. Starting a task from the shortcut needs no UAC prompt. For safety, the installer copies the two scripts the task runs into `C:\Program Files\TidyTerminals` (admin-write only), so a normal-privilege program can't tamper with code that runs elevated. After editing `tidy-terminals.ps1`, re-run `install.ps1` to update that copy.
 
 ### No admin / no install
 
@@ -69,7 +69,7 @@ It tiles on the **primary** monitor's work area (screen minus taskbar).
 Unregister-ScheduledTask -TaskName 'Tidy Terminals' -Confirm:$false
 ```
 
-Then delete the Desktop shortcut and this folder.
+Then delete the Desktop shortcut, `C:\Program Files\TidyTerminals` and this folder.
 
 ## License
 
