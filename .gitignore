@@ -1,0 +1,8 @@
+*.log
+*.lnk
+.env
+.env.*
+*.pem
+*.key
+Thumbs.db
+desktop.ini
