@@ -3,7 +3,8 @@
 #      tidy script can also move terminals that were opened as administrator.
 #   2. Creates a Desktop shortcut that starts the task.
 #   3. Adds a Startup entry for a tiny background listener that owns the Ctrl+Alt+T hotkey
-#      (more reliable than a shortcut-file hotkey) and starts it now.
+#      (more reliable than a shortcut-file hotkey). It is NOT started from here: this script is
+#      elevated, and the listener must run as a normal user. It starts at your next sign-in.
 # The elevated scripts are copied to Program Files; re-run this after editing tidy-terminals.ps1.
 # After this, using the shortcut or hotkey shows no admin prompt.
 
@@ -48,6 +49,6 @@ $startup.Arguments = '"{0}"' -f (Join-Path $dir 'hotkey-listener.vbs')
 $startup.WorkingDirectory = $dir
 $startup.WindowStyle = 7
 $startup.Save()
-Start-Process "$env:WINDIR\System32\wscript.exe" -ArgumentList ('"{0}"' -f (Join-Path $dir 'hotkey-listener.vbs'))
 
-Write-Host 'Installed. Use the "Tidy Terminals" Desktop shortcut or press Ctrl+Alt+T.'
+Write-Host 'Installed. Use the "Tidy Terminals" Desktop shortcut now.'
+Write-Host 'The Ctrl+Alt+T hotkey starts at your next sign-in, or double-click hotkey-listener.vbs (not as admin) to start it now.'

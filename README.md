@@ -31,6 +31,8 @@ Windows Snap only offers a few fixed layouts. If you run a pile of Claude Code, 
 
 This registers a scheduled task named `Tidy Terminals`, puts a **Tidy Terminals** shortcut on your Desktop, and starts a tiny background listener (also launched at every login) that owns the **Ctrl+Alt+T** hotkey. Admin approval is needed only this once.
 
+The hotkey listener starts at your next sign-in (the installer deliberately doesn't launch it, since the installer is elevated and the listener should run as a normal user). To start it right away, double-click `hotkey-listener.vbs` from a normal Explorer window.
+
 Run it again after opening more terminals.
 
 ### Why a scheduled task?
