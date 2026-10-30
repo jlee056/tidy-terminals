@@ -1,6 +1,6 @@
 # Background hotkey listener: registers Ctrl+Alt+T system-wide and runs Tidy Terminals when pressed.
 # Started hidden at login by hotkey-listener.vbs (install.ps1 puts that in your Startup folder).
-# Runs as a normal user; it only starts the elevated scheduled task, it doesn't tidy anything itself.
+# Runs as a normal user and launches the tiler when the hotkey is pressed.
 
 $ErrorActionPreference = 'Stop'
 
@@ -47,11 +47,7 @@ if (-not $win.Register(3, 0x54)) {
 }
 
 $win.add_Pressed({
-    # Prefer the elevated scheduled task (can move admin windows); fall back to a plain run
-    & "$sys\schtasks.exe" /run /tn 'Tidy Terminals' *> $null
-    if ($LASTEXITCODE -ne 0) {
-        Start-Process "$sys\wscript.exe" -ArgumentList ('"{0}"' -f (Join-Path $here 'tidy-terminals.vbs'))
-    }
+    Start-Process "$sys\wscript.exe" -ArgumentList ('"{0}"' -f (Join-Path $here 'tidy-terminals.vbs')) -WindowStyle Hidden
 })
 
 [System.Windows.Forms.Application]::Run()

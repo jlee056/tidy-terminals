@@ -1,7 +1,6 @@
 # Tidy Terminals: snaps every open terminal window into an even grid on the main monitor.
 # Picks up Windows Terminal, Command Prompt and PowerShell windows. Leaves agentview alone.
-# Windows opened "as administrator" can only be moved when this runs elevated (install.ps1 sets
-# that up); otherwise they are skipped.
+# Windows opened "as administrator" can only be moved when this script itself runs elevated.
 # Run it from the desktop shortcut or the Ctrl+Alt+T hotkey.
 
 $ErrorActionPreference = 'Stop'

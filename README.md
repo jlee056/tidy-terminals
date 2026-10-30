@@ -1,12 +1,12 @@
 # Tidy Terminals
 
-One click (or **Ctrl+Alt+T**) snaps every open terminal window into an even grid on your main monitor, however many are open.
+One click (or **Ctrl+Alt+T**) snaps your regular terminal windows into an even grid on your main monitor, however many are open.
 
 Windows Snap only offers a few fixed layouts. If you run a pile of Claude Code, PowerShell or cmd windows, resizing them by hand gets old fast. This does it in one keypress, with no learning curve.
 
 ## What it does
 
-- Finds every **Windows Terminal**, **Command Prompt** and **PowerShell** window.
+- Finds every **Windows Terminal**, **Command Prompt** and **PowerShell** window that the current user can move.
 - Tiles them into a grid sized to the count: 2 side by side, 4 in 2x2, 6 in 2x3, 9 in 3x3.
 - A partly filled last row stretches to the full width.
 - Restores minimized or maximized windows first.
@@ -22,29 +22,25 @@ Windows Snap only offers a few fixed layouts. If you run a pile of Claude Code, 
 ## Install
 
 1. Clone or download this repo somewhere permanent (the shortcut points at this folder).
-2. Open PowerShell **as administrator**, then:
+2. Open a normal PowerShell window, then:
 
    ```powershell
    cd path\to\tidy-terminals
    powershell -ExecutionPolicy Bypass -File .\install.ps1
    ```
 
-This registers a scheduled task named `Tidy Terminals`, puts a **Tidy Terminals** shortcut on your Desktop, and starts a tiny background listener (also launched at every login) that owns the **Ctrl+Alt+T** hotkey. Admin approval is needed only this once.
+This puts a **Tidy Terminals** shortcut on your Desktop and adds a background listener at login for the **Ctrl+Alt+T** hotkey. No administrator approval is needed for a new installation. Upgrading from an older version may require removing its elevated scheduled task; the installer will warn you if it cannot do that.
 
-The hotkey listener starts at your next sign-in (the installer deliberately doesn't launch it, since the installer is elevated and the listener should run as a normal user). To start it right away, double-click `hotkey-listener.vbs` from a normal Explorer window.
+The hotkey listener starts at your next sign-in. To start it right away, double-click `hotkey-listener.vbs` from Explorer.
 
 Run it again after opening more terminals.
 
-### Why a scheduled task?
+### Administrator windows
 
-Windows only lets an elevated program move elevated windows. The task runs with highest privileges, so terminals you opened "as administrator" join the grid too. Starting a task from the shortcut needs no UAC prompt. For safety, the installer copies the two scripts the task runs into `C:\Program Files\TidyTerminals` (admin-write only), so a normal-privilege program can't tamper with code that runs elevated. After editing `tidy-terminals.ps1`, re-run `install.ps1` to update that copy.
-
-### No admin / no install
-
-Skip the installer and run the script directly. Admin-opened terminals will just be skipped:
+Windows only lets an elevated program move elevated windows. The regular shortcut and hotkey run without elevation, so they skip terminals opened "as administrator." If you need to tile those too, run the script from an elevated PowerShell window:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tidy-terminals.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tidy-terminals.ps1
 ```
 
 ## Files
@@ -53,9 +49,9 @@ powershell -ExecutionPolicy Bypass -File .\tidy-terminals.ps1
 | --- | --- |
 | `tidy-terminals.ps1` | The grid logic (Win32 calls via `Add-Type`) |
 | `tidy-terminals.vbs` | Runs the script with no visible window |
-| `run-tidy-task.vbs` | What the shortcut runs; starts the elevated scheduled task |
-| `hotkey-listener.ps1` / `.vbs` | Hidden background listener that registers Ctrl+Alt+T via the Windows hotkey API and starts the task |
-| `install.ps1` | Registers the task, creates the Desktop shortcut, adds the listener to Startup |
+| `run-tidy-task.vbs` | Legacy-named launcher used by existing Desktop shortcuts; starts the tiler directly |
+| `hotkey-listener.ps1` / `.vbs` | Hidden background listener that registers Ctrl+Alt+T via the Windows hotkey API |
+| `install.ps1` | Creates the Desktop shortcut and adds the listener to Startup |
 
 ## Customizing
 
@@ -68,15 +64,15 @@ It tiles on the **primary** monitor's work area (screen minus taskbar).
 
 ## Troubleshooting
 
-If another program already owns Ctrl+Alt+T, the listener shows a message saying so. Change the key in `hotkey-listener.ps1` (the `0x54` is the virtual-key code for T), then re-run `install.ps1`.
+If another program already owns Ctrl+Alt+T, the listener shows a message saying so. Change the key in `hotkey-listener.ps1` (the `0x54` is the virtual-key code for T), then restart the listener or sign out and back in.
 
 ## Uninstall
 
 ```powershell
-Unregister-ScheduledTask -TaskName 'Tidy Terminals' -Confirm:$false
+Remove-Item ([IO.Path]::Combine([Environment]::GetFolderPath('Desktop'), 'Tidy Terminals.lnk'))
 ```
 
-Then delete the Desktop shortcut, the `Tidy Terminals Hotkey` shortcut in your Startup folder (`shell:startup`), end any `powershell` process running `hotkey-listener.ps1`, `C:\Program Files\TidyTerminals` and this folder.
+Then delete the `Tidy Terminals Hotkey` shortcut in your Startup folder (`shell:startup`), end any `powershell` process running `hotkey-listener.ps1`, and delete this folder. Older installations may also have a scheduled task named `Tidy Terminals`; remove it from an elevated PowerShell window if present.
 
 ## License
 
