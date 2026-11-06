@@ -161,8 +161,11 @@ public class Job {
     public Rectangle Vis;      // visible frame right now
     public int PadL, PadT, PadR, PadB;
     public bool Claimed, Done;
+    public bool Fake;          // demo window: only exists as a rectangle
+    public string Title;
 
     public void Measure() {
+        if (Fake) return;
         Native.RECT o, v;
         Native.GetWindowRect(H, out o);
         PadL = PadT = PadR = PadB = 0;
@@ -174,17 +177,20 @@ public class Job {
     }
 
     public void MoveVisible(int x, int y) {
+        if (Fake) { Vis.Location = new Point(x, y); return; }
         // SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS
         Native.SetWindowPos(H, IntPtr.Zero, x - PadL, y - PadT, 0, 0, 0x0001 | 0x0004 | 0x0010 | 0x4000);
     }
 
     public void SetVisible(int x, int y, int w, int h) {
+        if (Fake) { Vis = new Rectangle(x, y, w, h); return; }
         // SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS
         Native.SetWindowPos(H, IntPtr.Zero, x - PadL, y - PadT, w + PadL + PadR, h + PadT + PadB, 0x0004 | 0x0010 | 0x4000);
     }
 
     public void Snap() {
         Done = true;
+        if (Fake) { Vis = Target; return; }
         if (!Native.IsWindow(H)) return;
         Measure();
         Native.SetWindowPos(H, IntPtr.Zero, Target.X - PadL, Target.Y - PadT,
@@ -225,25 +231,33 @@ public static class Grid {
         wins.Reverse();   // oldest first
 
         var jobs = new List<Job>();
-        int n = wins.Count;
-        if (n == 0) return jobs;
-        int rows = Math.Max(1, (int)Math.Floor(Math.Sqrt(n)));
-        int cols = (int)Math.Ceiling(n / (double)rows);
-        Rectangle wa = WorkArea();
-        int cellH = wa.Height / rows;
-
-        for (int i = 0; i < n; i++) {
-            int row = i / cols, col = i % cols;
-            int inRow = row == rows - 1 ? n - row * cols : cols;
-            int w = wa.Width / inRow;
+        List<Rectangle> slots = Layout(wins.Count, WorkArea());
+        for (int i = 0; i < wins.Count; i++) {
             var j = new Job();
             j.H = wins[i];
-            j.Target = new Rectangle(wa.Left + col * w + Gap, wa.Top + row * cellH + Gap, w - 2 * Gap, cellH - 2 * Gap);
+            j.Target = slots[i];
             if (Native.IsIconic(j.H) || Native.IsZoomed(j.H)) Native.ShowWindow(j.H, 9);   // restore first
             j.Measure();
             jobs.Add(j);
         }
         return jobs;
+    }
+
+    // Wide screen: fewer rows than columns. 2 -> 1x2, 4 -> 2x2, 6 -> 2x3, 9 -> 3x3.
+    // A partly filled last row stretches to the full width.
+    public static List<Rectangle> Layout(int n, Rectangle wa) {
+        var slots = new List<Rectangle>();
+        if (n == 0) return slots;
+        int rows = Math.Max(1, (int)Math.Floor(Math.Sqrt(n)));
+        int cols = (int)Math.Ceiling(n / (double)rows);
+        int cellH = wa.Height / rows;
+        for (int i = 0; i < n; i++) {
+            int row = i / cols, col = i % cols;
+            int inRow = row == rows - 1 ? n - row * cols : cols;
+            int w = wa.Width / inRow;
+            slots.Add(new Rectangle(wa.Left + col * w + Gap, wa.Top + row * cellH + Gap, w - 2 * Gap, cellH - 2 * Gap));
+        }
+        return slots;
     }
 }
 
@@ -287,7 +301,7 @@ public class Overlay : Form {
     List<Rectangle> drawnLast = new List<Rectangle>();
     Dictionary<int, SolidBrush> brushes = new Dictionary<int, SolidBrush>();
     Stopwatch clock = Stopwatch.StartNew();
-    double last;
+    double last, simTime;
     Timer timer;
     Random rng = new Random();
     int vx, vy, vw, vh;
@@ -295,8 +309,12 @@ public class Overlay : Form {
     float ground;
     bool finishing;
 
-    public Overlay(List<Job> jobs) {
+    public Overlay(List<Job> jobs) : this(jobs, Rectangle.Empty, Rectangle.Empty, 0) { }
+
+    // screen/work empty = the real desktop. The demo passes its own canvas and a fixed seed.
+    public Overlay(List<Job> jobs, Rectangle screen, Rectangle workArea, int seed) {
         this.jobs = jobs;
+        if (seed != 0) rng = new Random(seed);
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
@@ -307,11 +325,15 @@ public class Overlay : Form {
         DoubleBuffered = true;
         Text = "Aqua Tidy";
 
-        vx = Native.GetSystemMetrics(76); vy = Native.GetSystemMetrics(77);
-        vw = Native.GetSystemMetrics(78); vh = Native.GetSystemMetrics(79);
-        Bounds = new Rectangle(vx, vy, vw, vh);
-
-        work = Grid.WorkArea();
+        if (screen.IsEmpty) {
+            vx = Native.GetSystemMetrics(76); vy = Native.GetSystemMetrics(77);
+            vw = Native.GetSystemMetrics(78); vh = Native.GetSystemMetrics(79);
+            Bounds = new Rectangle(vx, vy, vw, vh);
+            work = Grid.WorkArea();
+        } else {
+            vx = screen.X; vy = screen.Y; vw = screen.Width; vh = screen.Height;
+            work = workArea;
+        }
         ground = work.Bottom - SH;
         int todo = 0;
         foreach (var j in jobs) if (j.AtTarget()) j.Done = true; else todo++;
@@ -358,17 +380,30 @@ public class Overlay : Form {
             double now = clock.Elapsed.TotalSeconds;
             float dt = (float)Math.Min(0.05, now - last);
             last = now;
-            if (!finishing && (now > TimeLimit || (Native.GetAsyncKeyState(0x1B) & 0x8000) != 0)) Finish();
-            foreach (var h in helpers) Step(h, dt);
-            StepParticles(dt);
+            if (!finishing && (Native.GetAsyncKeyState(0x1B) & 0x8000) != 0) Finish();
+            Advance(dt);
             Redraw();
-            bool all = parts.Count == 0;
-            foreach (var h in helpers) if (h.S != St.Done) all = false;
-            if (all) { timer.Stop(); Close(); }
+            if (AllDone) { timer.Stop(); Close(); }
         } catch (Exception) {
             timer.Stop();
             foreach (var j in jobs) if (!j.Done) j.Snap();
             Close();
+        }
+    }
+
+    // One step of the whole scene
+    public void Advance(float dt) {
+        simTime += dt;
+        if (!finishing && simTime > TimeLimit) Finish();
+        foreach (var h in helpers) Step(h, dt);
+        StepParticles(dt);
+    }
+
+    public bool AllDone {
+        get {
+            if (parts.Count > 0) return false;
+            foreach (var h in helpers) if (h.S != St.Done) return false;
+            return true;
         }
     }
 
@@ -508,7 +543,7 @@ public class Overlay : Form {
         if (!finishing)
             foreach (var j in jobs) {
                 if (j.Done || j.Claimed) continue;
-                if (!Native.IsWindow(j.H)) { j.Done = true; continue; }
+                if (!j.Fake && !Native.IsWindow(j.H)) { j.Done = true; continue; }
                 j.Measure();
                 double dx = j.Vis.X + j.Vis.Width / 2.0 - (h.X + HandX), dy = j.Vis.Y - (h.Y + HandY);
                 double d = dx * dx + dy * dy;
@@ -709,8 +744,9 @@ public class Overlay : Form {
         return b;
     }
 
-    protected override void OnPaint(PaintEventArgs e) {
-        var g = e.Graphics;
+    protected override void OnPaint(PaintEventArgs e) { Draw(e.Graphics); }
+
+    public void Draw(Graphics g) {
         g.InterpolationMode = InterpolationMode.NearestNeighbor;
         g.PixelOffsetMode = PixelOffsetMode.Half;
         g.SmoothingMode = SmoothingMode.None;
@@ -764,22 +800,98 @@ public static class Engine {
         foreach (var j in jobs) if (!j.Done) j.Snap();   // never leave a window half-moved
     }
 
-    // Every frame at 4x, normal and mirrored, on a gray sheet. For checking the art.
+    // Every frame at 4x with its name underneath. For checking the art (and the README).
     public static void SaveSheet(string spritesPath, string pngPath) {
         Sprites.Load(spritesPath);
         var names = new List<string>(Sprites.FrameNames);
-        int cw = Sprites.W * 4 + 16, ch = Sprites.H * 4 + 16;
-        using (var sheet = new Bitmap(cw * names.Count, ch * 2))
-        using (var g = Graphics.FromImage(sheet)) {
-            g.Clear(Color.FromArgb(200, 200, 205));
+        int cw = Sprites.W * 4 + 24, ch = Sprites.H * 4 + 44;
+        using (var sheet = new Bitmap(cw * names.Count + 12, ch + 12))
+        using (var g = Graphics.FromImage(sheet))
+        using (var font = new Font("Segoe UI", 10f, FontStyle.Regular, GraphicsUnit.Pixel))
+        using (var ink = new SolidBrush(Color.FromArgb(70, 76, 110))) {
+            g.Clear(Color.FromArgb(234, 242, 252));
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            var center = new StringFormat(); center.Alignment = StringAlignment.Center;
             for (int i = 0; i < names.Count; i++) {
-                using (var a = Sprites.RenderFrame(names[i], 4, 0)) {
-                    g.DrawImageUnscaled(a, i * cw + 8, 8);
-                    a.RotateFlip(RotateFlipType.RotateNoneFlipX);
-                    g.DrawImageUnscaled(a, i * cw + 8, ch + 8);
-                }
+                using (var a = Sprites.RenderFrame(names[i], 4, 0))
+                    g.DrawImage(a, new Rectangle(i * cw + 18, 12, a.Width, a.Height));
+                g.DrawString(names[i], font, ink, new RectangleF(i * cw + 6, Sprites.H * 4 + 20, cw, 20), center);
             }
             sheet.Save(pngPath, ImageFormat.Png);
+        }
+    }
+
+    // Renders Aqua tidying four pretend terminals on a pretend desktop, one PNG per frame
+    // (30 fps) into outDir. Uses the real animation code; no real windows are touched.
+    public static int SaveDemo(string spritesPath, string outDir) {
+        Sprites.Load(spritesPath);
+        var screen = new Rectangle(0, 0, 960, 540);
+        var work = new Rectangle(0, 0, 960, 500);
+        string[] titles = { "PowerShell", "Command Prompt", "Windows Terminal", "claude" };
+        Rectangle[] start = {
+            new Rectangle(40, 60, 360, 210), new Rectangle(520, 30, 300, 180),
+            new Rectangle(300, 240, 420, 200), new Rectangle(60, 330, 260, 140) };
+        List<Rectangle> slots = Grid.Layout(titles.Length, work);
+        var jobs = new List<Job>();
+        for (int i = 0; i < titles.Length; i++) {
+            var j = new Job();
+            j.Fake = true; j.Title = titles[i]; j.Vis = start[i]; j.Target = slots[i];
+            jobs.Add(j);
+        }
+        Directory.CreateDirectory(outDir);
+        int frame = 0;
+        using (var overlay = new Overlay(jobs, screen, work, 7))
+        using (var bmp = new Bitmap(screen.Width, screen.Height, PixelFormat.Format24bppRgb))
+        using (var g = Graphics.FromImage(bmp)) {
+            Action save = delegate {
+                DrawDesktop(g, screen, work, jobs);
+                overlay.Draw(g);
+                bmp.Save(Path.Combine(outDir, string.Format("f_{0:D4}.png", frame++)), ImageFormat.Png);
+            };
+            for (int i = 0; i < 15; i++) save();
+            for (int i = 0; i < 30 * 30 && !overlay.AllDone; i++) { overlay.Advance(1f / 30); save(); }
+            for (int i = 0; i < 30; i++) save();
+        }
+        return frame;
+    }
+
+    static void DrawDesktop(Graphics g, Rectangle screen, Rectangle work, List<Job> jobs) {
+        g.SmoothingMode = SmoothingMode.None;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        using (var bg = new LinearGradientBrush(screen, Color.FromArgb(28, 52, 92), Color.FromArgb(70, 120, 180), 90f))
+            g.FillRectangle(bg, screen);
+        using (var bar = new SolidBrush(Color.FromArgb(24, 24, 30)))
+            g.FillRectangle(bar, screen.Left, work.Bottom, screen.Width, screen.Bottom - work.Bottom);
+        using (var icon = new SolidBrush(Color.FromArgb(90, 150, 220)))
+            for (int i = 0; i < 5; i++) g.FillRectangle(icon, screen.Width / 2 - 70 + i * 30, work.Bottom + 12, 18, 16);
+
+        using (var titleFont = new Font("Segoe UI", 11f, GraphicsUnit.Pixel))
+        using (var mono = new Font("Consolas", 12f, GraphicsUnit.Pixel))
+        using (var frameB = new SolidBrush(Color.FromArgb(60, 60, 66)))
+        using (var titleB = new SolidBrush(Color.FromArgb(32, 32, 36)))
+        using (var bodyB = new SolidBrush(Color.FromArgb(12, 12, 14)))
+        using (var white = new SolidBrush(Color.FromArgb(225, 225, 230)))
+        using (var green = new SolidBrush(Color.FromArgb(120, 220, 140)))
+        using (var gray = new SolidBrush(Color.FromArgb(140, 140, 150))) {
+            foreach (var j in jobs) {
+                Rectangle r = j.Vis;
+                g.FillRectangle(frameB, r);
+                g.FillRectangle(titleB, r.X + 1, r.Y + 1, r.Width - 2, 22);
+                g.FillRectangle(bodyB, r.X + 1, r.Y + 23, r.Width - 2, r.Height - 24);
+                var clip = g.Clip; g.SetClip(r);
+                g.DrawString(j.Title, titleFont, white, r.X + 10, r.Y + 5);
+                // caption buttons: minimize, maximize, close
+                g.FillRectangle(gray, r.Right - 62, r.Y + 12, 8, 1);
+                using (var pen = new Pen(Color.FromArgb(140, 140, 150))) {
+                    g.DrawRectangle(pen, r.Right - 42, r.Y + 7, 8, 8);
+                    g.DrawLine(pen, r.Right - 20, r.Y + 7, r.Right - 12, r.Y + 15);
+                    g.DrawLine(pen, r.Right - 12, r.Y + 7, r.Right - 20, r.Y + 15);
+                }
+                string prompt = j.Title == "Command Prompt" ? "C:\\Users\\you>" : j.Title == "claude" ? "> " : "PS C:\\Users\\you>";
+                g.DrawString(prompt, mono, green, r.X + 8, r.Y + 30);
+                g.DrawString("ready", mono, gray, r.X + 8, r.Y + 46);
+                g.Clip = clip;
+            }
         }
     }
 

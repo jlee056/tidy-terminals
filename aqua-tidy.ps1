@@ -5,8 +5,9 @@
 #   aqua-tidy.ps1                  run it
 #   aqua-tidy.ps1 -Preview x.png   render every sprite frame to a sheet (for editing the art)
 #   aqua-tidy.ps1 -MakeIcon        rebuild aqua.ico from the sprite art
+#   aqua-tidy.ps1 -Demo folder     render a pretend-desktop demo as PNG frames (no real windows move)
 
-param([string]$Preview, [switch]$MakeIcon)
+param([string]$Preview, [switch]$MakeIcon, [string]$Demo)
 
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
@@ -28,6 +29,7 @@ function Import-Engine {
 }
 
 if ($Preview) { Import-Engine; [AquaTidy.Engine]::SaveSheet($sprites, $Preview); return }
+if ($Demo) { Import-Engine; [AquaTidy.Engine]::SaveDemo($sprites, $Demo); return }
 if ($MakeIcon) { Import-Engine; [AquaTidy.Engine]::SaveIcon($sprites, (Join-Path $here 'aqua.ico')); return }
 
 # One Aqua run at a time
