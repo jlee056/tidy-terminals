@@ -53,6 +53,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tidy-terminals.ps1
 | `hotkey-listener.ps1` / `.vbs` | Hidden background listener that registers Ctrl+Alt+T via the Windows hotkey API |
 | `install.ps1` | Creates the Desktop shortcut and adds the listener to Startup |
 
+## Aqua Tidy (fun mode)
+
+Press **Ctrl+Alt+A** or double-click the **Aqua Tidy** Desktop icon. Up to three little pixel Aquas pop in with a sparkle. Each one walks over, flies up, grabs a terminal by the top edge and carries it into its spot in the same grid. Then she flies to the bottom-right corner and drags it out (or in) to the right size. When every window is done, she does a victory pose and poofs away. If everything is already tidy, one Aqua shows up and celebrates anyway.
+
+- Press Esc at any time, or wait 20 seconds, and every window still in flight snaps into place.
+- If anything goes wrong it logs to `%LOCALAPPDATA%\AquaTidy\aqua-tidy.log` and falls back to the normal instant tidy.
+- The art is plain text in `aqua-sprites.txt` (24 x 32 pixel frames, one character per pixel). Edit it, then check your changes with `.\aqua-tidy.ps1 -Preview sheet.png` and rebuild the icon with `.\aqua-tidy.ps1 -MakeIcon`.
+- Fan art of Aqua from KonoSuba, drawn for this tool.
+
+| File | Purpose |
+| --- | --- |
+| `aqua-tidy.ps1` / `.vbs` | Launcher (compiles the engine once and caches it in `%LOCALAPPDATA%\AquaTidy`) |
+| `AquaTidy.cs` | Overlay, animation and window carrying |
+| `aqua-sprites.txt` | Palette, sprite layers and frames |
+| `aqua.ico` | Desktop icon |
+
 ## Customizing
 
 Edit the top of `tidy-terminals.ps1`:

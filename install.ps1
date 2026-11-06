@@ -25,6 +25,14 @@ $lnk.WorkingDirectory = $dir
 $lnk.Description = 'Snap all terminal windows into a grid'
 $lnk.Save()
 
+$aqua = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Aqua Tidy.lnk'))
+$aqua.TargetPath = "$env:WINDIR\System32\wscript.exe"
+$aqua.Arguments = '"{0}"' -f (Join-Path $dir 'aqua-tidy.vbs')
+$aqua.WorkingDirectory = $dir
+$aqua.IconLocation = (Join-Path $dir 'aqua.ico') + ',0'
+$aqua.Description = 'Little Aquas carry your terminals into a grid'
+$aqua.Save()
+
 $startup = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Startup')) 'Tidy Terminals Hotkey.lnk'))
 $startup.TargetPath = "$env:WINDIR\System32\wscript.exe"
 $startup.Arguments = '"{0}"' -f (Join-Path $dir 'hotkey-listener.vbs')
@@ -32,5 +40,5 @@ $startup.WorkingDirectory = $dir
 $startup.WindowStyle = 7
 $startup.Save()
 
-Write-Host 'Installed. Use the "Tidy Terminals" Desktop shortcut now.'
-Write-Host 'The Ctrl+Alt+T hotkey starts at your next sign-in, or double-click hotkey-listener.vbs to start it now.'
+Write-Host 'Installed. Use the "Tidy Terminals" or "Aqua Tidy" Desktop shortcut now.'
+Write-Host 'The Ctrl+Alt+T and Ctrl+Alt+A hotkeys start at your next sign-in, or double-click hotkey-listener.vbs to start them now.'
